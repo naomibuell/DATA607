@@ -1,0 +1,68 @@
+---
+title: "Week 1 Assignment – Loading Data into a Data Frame"
+author: "Naomi Buell"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# load packages
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(janitor)
+library(patchwork)
+```
+
+# Presidential Primary Election Polls
+## Introduction
+For this assignment, I chose the [current presidential primary election poll data from FiveThirtyEight]( https://projects.fivethirtyeight.com/polls/president-primary-r/2024/national/). Here is an 538/ABC news article associated with this data, called ["This could be the shortest presidential primary ever"](https://abcnews.go.com/538/shortest-presidential-primary/story?id=106819031). The article discusses the 2024 Republican presidential nomination race, and explains that it will likely be ending quickly due to Trump's strong support within the party compared to Nikki Haley. In particular, Nikki Haley is losing in her home state of South Carolina, where Trump leads by over 30 percentage points.
+
+## Data transformation
+Here, I load the data from the source online and rename and subset data.
+```{r load-data, eval = TRUE}
+# Loading data (original data file is accessible through code) and transforming data types
+primaries <- read_csv("https://projects.fivethirtyeight.com/polls/data/president_primary_polls.csv", 
+               col_types = cols(start_date = col_date("%m/%d/%y"), end_date = col_date("%m/%d/%y")), # changing char to date data types when loading
+                 na = c(""))
+```
+
+```{r rename-subset-data, eval = TRUE}
+# rename and subset data
+primaries_cleaned <- primaries |> 
+  janitor::clean_names() |>
+  select(fte_grade, methodology, transparency_score, state, start_date, end_date, sample_size, party, answer, pct) |>
+  filter(start_date >= ymd(20230101) & party == "REP") |>  
+  rename(five_thirty_eight_grade = fte_grade, percent_vote = pct, candidate = answer)
+```
+
+```{r view-data, eval = TRUE}
+# browse data
+head(primaries_cleaned)
+```
+
+## Data Visualization
+Taking a closer look at just the final 3 republican candidates over time:
+```{r plot-data, eval = TRUE}
+# Plotting just the last 3 republican presidential primary candidates to remain in the primaries (Donald Trump, Nikki Haley, and Ron DeSantis:
+primaries_filtered <- dplyr::filter(primaries_cleaned, candidate %in% c("Trump", "Haley", "DeSantis"))
+primaries_filtered$sc <- if_else(primaries_filtered$state == "South Carolina", "South Carolina", "National", "National") # Adding dummy var for SC, assuming NAs are not SC, and using strings so they show up plot.
+
+ggplot(
+  data = primaries_filtered,
+  mapping = aes(x = end_date, y = percent_vote, color = candidate)
+) +
+  geom_point(size = 0.2) +
+  geom_smooth() +
+  labs(
+    x = "Date",
+    y = "Percent of the poll",
+    title = "Republican Primaries on the whole and in South Carolina",
+    color = "Candidate"
+ ) +
+facet_wrap(~ sc)
+```
+
+## Conclusion
+After loading the primary data and transforming it to reflect the current republican primaries, I verified that Trump is winning the primaries with Haley in second--in South Carolina (SC) and across the country. Although Trump's polls are lower in SC than in the rest of the country, it does look like he is leading in the South Carolina primaries by 30 percentage points like the article states.
