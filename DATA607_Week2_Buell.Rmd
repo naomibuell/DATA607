@@ -1,0 +1,71 @@
+---
+title: "Week Two - R and SQL"
+author: "Naomi Buell"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# load packages
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(RMySQL)
+```
+
+# Introduction
+In this file, I chose six recent popular movies--All of Us Strangers, Anatomy of a Fall, Past Lives, Poor Things, Saltburn, and Zone of Interest--and asked 5 friends for their ratings. Later in this file, I will store these data on a SQL database, and handle missings. 
+
+## Part 1: Build a table
+I build a table of friends' ratings below (their initials are the column names).
+```{r build-table}
+movieratings <- data.frame(  
+  Title = c("All of Us Strangers", "Anatomy of a Fall", "Past Lives", "Poor Things", "Saltburn", "Zone of Interest"),
+  AH = c(NA, NA, 5, NA, 2, 5), 
+  SC = c(4, 4.5, 4.5, 4.5, 2, 4),
+  MB = c(4.5, NA, 4, 5, 4, NA),
+  PT = c(NA, NA, NA, 4, 3.5, NA),
+  BH = c(NA, NA, 5, NA, 3, NA)
+)
+```
+
+## Part 2: Store data in SQL database
+In order to store the results in the class MySQL database, I connect to MySQL in R using the RMySQL library (code is not shown in R-markdown since the password is included).
+```{r connect-SQL, include=FALSE}
+# Replace placeholders with your actual MySQL connection details
+con <- dbConnect(MySQL(), 
+                 user = "naomi.buell13", 
+                 password = "naomi.buell13", 
+                 dbname = "naomi.buell13", 
+                 host = "cunydata607sql.mysql.database.azure.com")
+```
+
+Next I use the dbWriteTable method in this library to copy my existing data frame to SQL.
+```{r build-table-SQL}
+# Use dbWriteTable to copy the "movieratings" dataframe to MySQL.
+dbWriteTable(conn = con, name = "movieratings", value = movieratings, overwrite = TRUE)
+```
+
+## Part 3: Transfer data from SQL database to R dataframe
+The prior R dataframe now exists as a table in the SQL database called "movieratings" and a query can be used to view it in R.
+```{r view-SQL-table}
+# View the table data with dbGetQuery command.
+head(dbGetQuery(con, "SELECT * FROM movieratings"))
+```
+
+## Part 4: Missing data strategy
+Regarding the missing data, as not all 5 friends had seen each movie, I coded these observations as "NA" in the data frame. I will keep these rows with NAs in my data, as removing them would leave me with only one movie. Instead, I plot the values using box plots below to show the distribution of ratings for each movie, allowing us to compare movie ratings despite the missing observations. 
+
+### Data Visualization
+```{r plot-data, eval = TRUE}
+# Boxplot
+boxplot(t(movieratings[, -1]), main = "Ratings for Movies", ylab = "Rating", names = movieratings$Title, cex.axis = .55)
+```
+
+# Conclusion
+Opting to visualize the data can still be informative, acknowledging that there are missing observations. Saltburn was more polarizing than the others, and Past Lives was generally rated the highest among all 5 movies. Besides Saltburn, my friends liked these movies and did not rate any of these other films below a 4. I might extend this work by getting more ratings data from the app Letterboxd, which is a social media for sharing movie reviews with your friends.
+
+```{r load-data, eval = TRUE, include=FALSE}
+dbDisconnect(con)
+```
