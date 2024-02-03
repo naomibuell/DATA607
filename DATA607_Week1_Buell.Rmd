@@ -13,14 +13,15 @@ library(dplyr)
 library(tidyverse)
 library(janitor)
 library(patchwork)
+library(forcats)
 ```
 
 # Presidential Primary Election Polls
 ## Introduction
-For this assignment, I chose the [current presidential primary election poll data from FiveThirtyEight]( https://projects.fivethirtyeight.com/polls/president-primary-r/2024/national/). Here is an 538/ABC news article associated with this data, called ["This could be the shortest presidential primary ever"](https://abcnews.go.com/538/shortest-presidential-primary/story?id=106819031). The article discusses the 2024 Republican presidential nomination race, and explains that it will likely be ending quickly due to Trump's strong support within the party compared to Nikki Haley. In particular, Nikki Haley is losing in her home state of South Carolina, where Trump leads by over 30 percentage points.
+For this assignment, I chose the [current presidential primary election poll data from FiveThirtyEight]( https://projects.fivethirtyeight.com/polls/president-primary-r/2024/national/). Here is an 538/ABC news article associated with this data called ["This could be the shortest presidential primary ever"](https://abcnews.go.com/538/shortest-presidential-primary/story?id=106819031). The article discusses the 2024 Republican presidential nomination race, and explains that it will likely be ending quickly due to Trump's strong support within the party compared to Nikki Haley. In particular, Nikki Haley is losing in her home state of South Carolina, where Trump leads by over 30 percentage points.
 
 ## Data transformation
-Here, I load the data from the source online and rename and subset data.
+Here, I load the data from the source online and revise some variable data types.
 ```{r load-data, eval = TRUE}
 # Loading data (original data file is accessible through code) and transforming data types
 primaries <- read_csv("https://projects.fivethirtyeight.com/polls/data/president_primary_polls.csv", 
@@ -28,15 +29,22 @@ primaries <- read_csv("https://projects.fivethirtyeight.com/polls/data/president
                  na = c(""))
 ```
 
+I rename variables to be more straightforward, further revise variable types, and subset the data to just this election cycle's Republican primaries. 
 ```{r rename-subset-data, eval = TRUE}
 # rename and subset data
 primaries_cleaned <- primaries |> 
   janitor::clean_names() |>
   select(fte_grade, methodology, transparency_score, state, start_date, end_date, sample_size, party, answer, pct) |>
   filter(start_date >= ymd(20230101) & party == "REP") |>  
-  rename(five_thirty_eight_grade = fte_grade, percent_vote = pct, candidate = answer)
+  rename(five_thirty_eight_grade = fte_grade, percent_vote = pct, candidate = answer) |> 
+  mutate(state = fct(state),
+         party = fct(party),
+         five_thirty_eight_grade = fct(five_thirty_eight_grade),
+         methodology = fct(methodology),
+         candidate = fct(candidate))
 ```
 
+Here is a peak at the cleaned dataset:
 ```{r view-data, eval = TRUE}
 # browse data
 head(primaries_cleaned)
