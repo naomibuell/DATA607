@@ -1,0 +1,149 @@
+---
+title: "Week 3 assignment"
+author: "Naomi Buell"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# load packages
+library(dplyr)
+library(tidyverse)
+library(janitor)
+library(stringr)
+```
+
+# Introduction
+
+In this assignment, I perform exercises related to string data manipulation in 4 parts.
+
+## Part 1
+
+I use the [173 majors listed in fivethirtyeight.com’s College Majors dataset](https://fivethirtyeight.com/features/the-economic-guide-to-picking-a-college-major/) to provide code that identifies the majors that contain either "DATA" or "STATISTICS".
+
+```{r load-filter, eval = TRUE}
+# Loading data (original data file is accessible through code), clean column names, and filter data down to the 3 observations where the variable "major" includes the words "DATA" or "STATISTICS".
+majors_list <- read_csv("https://raw.githubusercontent.com/fivethirtyeight/data/master/college-majors/all-ages.csv") |> 
+  janitor::clean_names() |> 
+  dplyr::filter(str_detect(major, "DATA|STATISTICS"))
+```
+
+After running the above code, there are only 3 majors remaining in the filtered dataset: computer programming and data processing, statistics and decision science, and management information systems and statistics.
+
+```{r majors, eval = TRUE}
+majors_list$major
+```
+
+## Part 2
+
+The code below transforms the following data:
+
+[1] "bell pepper"  "bilberry"     "blackberry"   "blood orange"
+
+[5] "blueberry"    "cantaloupe"   "chili pepper" "cloudberry"  
+
+[9] "elderberry"   "lime"         "lychee"       "mulberry"    
+
+[13] "olive"        "salal berry"
+
+Into a format that like this:
+
+c("bell pepper", "bilberry", "blackberry", "blood orange", "blueberry", "cantaloupe", "chili pepper", "cloudberry", "elderberry", "lime", "lychee", "mulberry", "olive", "salal berry")
+
+First, I store the character vector, pre-transformation, in R:
+
+```{r part-2-create, eval = TRUE}
+# Creating the data in R as specified in the assignment.
+fruits <- c("bell pepper", "bilberry", "blackberry", "blood orange",
+                   "blueberry", "cantaloupe", "chili pepper", "cloudberry",
+                   "elderberry", "lime", "lychee", "mulberry",
+                   "olive", "salal berry")
+
+# This is the data pre-transformation, as specified in assignment instructions:
+fruits
+```
+
+Next, I transform the character vector into a string that looks like the explicit representation of the character vector using the `c()` function. I show the transformed format in string view below:
+
+```{r part-2-transform, eval = TRUE}
+# The following command transforms the original data into a string starting with "c(", comma-deliminated, with each fruit in the list enclosed in quotes, and ending with ")", as specified in the assignment question:
+fruits_transformed <- str_c("c(", str_c('"', fruits, '"', collapse = ", "), ")")
+str_view(fruits_transformed)
+```
+
+## Part 3
+
+Here I describe, in words, what the following expressions will match:
+
+-   `(.)\1\1` is a regular expression. It matches strings with the same character three consecutive times. E.g. `(.)\1\1`: `c("ccc", "444", "\$\$\$")`.
+
+```{r test-1, eval = TRUE}
+expression <- "(.)\\1\\1" # naming expression
+str_view(expression) # String view should print like the regular expression as specified in assignment text above
+str_view(c(words,"ccc", "444", "$$$"), expression) # testing matches
+```
+
+-   `"(.)(.)\\2\\1"` is a character string representing a regular expression–the actual regular expression is `(.)(.)\2\1`. It matches a string with any two characters followed by those same two characters in reverse order. E.g., `"(.)(.)\\2\\1"`: `c("afternoon", "apparent", "arrange")`.
+
+```{r test-2}
+expression <- "(.)(.)\\2\\1" # naming expression
+str_view(expression) # string view of expression
+str_view(c(words), expression) # testing matches
+```
+
+-   `(..)\1` is a regular expression that matches any string with a repeated pair of letters. E.g., `(..)\1`: `c("remember", "banana", "coconut")`.
+
+```{r test-3}
+expression <- "(..)\\1" # naming expression
+str_view(expression) # string view of expression
+str_view(c(words, fruit), expression) # testing matches
+```
+
+-   `"(.).\\1.\\1"` is a character string representing the regular expression `(.).\1.\1`. This matches a string with at least 5 consecutive characters, where the 1st, 3rd, and 5th of those characters are the same. E.g., `"(.).\\1.\\1"` : `c("eleven", "banana", "papaya")`.
+
+```{r test-4}
+expression <- "(.).\\1.\\1" # naming expression
+str_view(expression) # string view of expression
+str_view(c(words, fruit, "elleven"), expression) # testing matches
+```
+
+-   `"(.)(.)(.).\*\\3\\2\\1"` is a character string representing the regular expression `(.)(.)(.).\*\3\2\1`, which matches any string with at least 6 characters, where there are 3 characters in a row, followed by those same 3 characters in reverse order. There can be any number of characters in between the first chunk of 3 and the second reversed chunk of 3. E.g., `"(.)(.)(.).\*\\3\\2\\1"`: `c("paragraph", "parrap", "abc123abc321abc")`.
+
+```{r test-5}
+expression <- "(.)(.)(.).*\\3\\2\\1"  # naming expression
+str_view(expression) # string view of expression
+str_view(c(words, fruit, "parrap", "parap", "abc123abc321abc"), expression) # testing matches
+```
+
+## Part 4
+
+Below are regular expressions to do the following:
+
+-   match words that start and end with the same character: the regular expression `\^(.).\*\1$`.
+
+```{r part-4a, eval = TRUE}
+expression <- "^(.).*\\1$" # naming expression using character string representing regular expression
+str_view(expression) # string view of expression
+str_view(c(words), expression) # testing matches
+```
+
+-   contain a repeated pair of letters (e.g. "church" contains "ch" repeated twice.): `(..).\*\\1`.
+
+```{r part-4b, eval = TRUE}
+expression <- "(..).*\\1" # naming expression
+str_view(expression) # string view of expression
+str_view(c(words), expression) # testing matches
+```
+
+-   contain one letter repeated in at least three places (e.g. "eleven" contains three "e"s.): `(.).\*\\1.\*\\1`.
+
+```{r part-4c, eval = TRUE}
+expression <- "(.).*\\1.*\\1" # naming expression
+str_view(expression) # string view of expression
+str_view(c(words), expression) # testing matches
+```
+
+# Conclusion
+
+In this assignment, I explored various aspects of string data manipulation in R, including filtered string data based on specific criteria and using REGEX to look for specific patterns in strings. I would expand on practical experience gained here with cleaning and manipulating larger datasets of string data in the future. Verifying these REGEX patterns on larger or more diverse datasets of strings would increase my confidence in their applicability, including revising some of these patterns for use with the txt file for Project 1 next week.
