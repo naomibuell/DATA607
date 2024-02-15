@@ -1,0 +1,161 @@
+---
+title: "Project 1"
+author: "Naomi Buell"
+date: "`r Sys.Date()`"
+format: html
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+# load packages
+library(dplyr)
+library(tidyverse)
+library(readr)
+library(janitor)
+```
+
+## Introduction
+
+In this project, I take a text file with chess tournament results, and create Quarto file that generates a .CSV file with the following information for all of the players: Player's Name, Player’s state, Total Number of Points, Player’s Pre-Rating, and Average Pre Chess Rating of Opponents.
+
+## Data Transformation
+
+First, I determine column widths by browsing the text file.
+
+```{r}
+#| label: widths
+# Defining the column widths based on the structure of the file
+col_widths <- c(8, 33, 6, 6, 6, 6, 6, 6, 6, 6)
+```
+
+Next, I import the data with columns of fixed width.
+
+```{r}
+#| label: import
+#| results: hide
+
+# URL of text file saved on github so data is accessible for anyone running the script.
+file_url <-
+  "https://github.com/naomibuell/DATA607/raw/main/DATA607_project1.txt"
+
+# Read the fixed-width format file into a data frame
+chess_data <-
+  read_fwf(file_url,
+           fwf_widths(col_widths),
+           skip = 4,
+           show_col_types = FALSE) |>
+  filter(X1 != "--------") |> # remove blank rows of dashes
+  mutate_all(~ str_replace_all(as.character(.), c("\\|" = ""))) |> # removing "|"s from the data
+  mutate(row_id = row_number(), # creating row ids
+         pid = round_half_up((row_number()) / 2, digits = 0)) # creating person IDs
+```
+
+Since text file structure has 2 rows per person-level observation, I transform it to just 1 row per observation by splitting each player's two rows into separate sets of columns.
+
+```{r}
+#| label: split
+#| warning: false
+chess_data_left <-
+  chess_data |> # get left 12 cols of per-person obs
+  filter(pid == as.integer(X1))
+chess_data_right <-
+  chess_data |> # get right 12 cols of per-person obs
+  filter(pid == row_id / 2)
+```
+
+Then I join the data back together and clean up the variables.
+
+```{r}
+#| label: join + clean
+#| warning: false
+# Join and clean variables
+chess_joined <-
+  full_join(chess_data_left, chess_data_right, by = "pid") |> # join left and right sides of data based on pid var
+  janitor::clean_names() |> # rename vars
+  rename(
+    name = x2_x,
+    state = x1_y,
+    total = x3_x,
+    opp1 = x4_x,
+    opp2 = x5_x,
+    opp3 = x6_x,
+    opp4 = x7_x,
+    opp5 = x8_x,
+    opp6 = x9_x,
+    opp7 = x10_x,
+    rating = x2_y
+  ) |>
+  select(-c(starts_with("row_id"), starts_with("x"))) |> # dropping unneeded columns
+  mutate(
+    # trimming strings and assigning var types
+    name = str_trim(name),
+    total = parse_double(total),
+    opp1 = parse_number(opp1),
+    opp2 = parse_number(opp2),
+    opp3 = parse_number(opp3),
+    opp4 = parse_number(opp4),
+    opp5 = parse_number(opp5),
+    opp6 = parse_number(opp6),
+    opp7 = parse_number(opp7),
+    state = as.factor(str_trim(state)),
+    rating = parse_number(str_extract(rating, " \\d+"))
+  )
+```
+
+Here is the tidied data set with 1 row per observation. Variables `opp1` through `opp7` represent each player's opponents' ID.
+
+```{r}
+head(chess_joined)
+```
+
+Using these IDs, I find the corresponding opponents' rating, and assign the average rating of each player's opponents to a new variable `opp_avg`. I also drop variables from the data that are not required by the assignment.
+
+```{r}
+#| label: avg-opp
+# Look up average pre-chess rating of opponents:
+chess_lookup <- chess_joined |>
+  mutate(
+    opp1 = ifelse(opp1 %in% pid, rating[match(opp1, pid)], NA),
+    opp2 = ifelse(opp2 %in% pid, rating[match(opp2, pid)], NA),
+    opp3 = ifelse(opp3 %in% pid, rating[match(opp3, pid)], NA),
+    opp4 = ifelse(opp4 %in% pid, rating[match(opp4, pid)], NA),
+    opp5 = ifelse(opp5 %in% pid, rating[match(opp5, pid)], NA),
+    opp6 = ifelse(opp6 %in% pid, rating[match(opp6, pid)], NA),
+    opp7 = ifelse(opp7 %in% pid, rating[match(opp7, pid)], NA)
+  )
+
+chess_avgs <- chess_lookup |>
+  mutate(opp_avg = rowMeans(select(chess_lookup, starts_with("opp")), na.rm = TRUE)) |>
+  select(-c(pid, matches("opp\\d"))) # drop unneeded vars
+```
+
+Now, the data set has all required info: player's name (`name`), player's state (`state`), total number of points (`total`), player's pre-rating (`rating`), and average pre-chess rating of opponents (`opp_avg`).
+
+```{r}
+#| label:  View dataset
+head(chess_avgs)
+```
+
+Lastly, I export the file as a .CSV.
+
+```{r}
+#| label: export
+write_csv(chess_avgs, "DATA607chessdata.csv")
+```
+
+Before I conclude, I also explore the top players in the final data set.
+
+```{r}
+#| label: explore top players
+chess_explore <- mutate(chess_avgs, ratio = rating / opp_avg)
+arrange(chess_explore, desc(rating)) # top player ratings
+arrange(chess_explore, desc(opp_avg)) # top player opponents' ratings
+arrange(chess_explore, desc(ratio)) # highest ratio of player:opponents ratings
+```
+
+## Conclusion
+
+In this assignment, I used REGEX, joins, and other techniques to transform and tidy chess tournament data from a .TXT file. By browsing the final data set, I found that Gary Hua had both the highest chess rating and, in turn, the highest rated chess opponents, on average. Interestingly, Aditya Bajaj played the third toughest opponents on average, despite being ranked 36th out of all pre-chess ratings of players in the tournament.
