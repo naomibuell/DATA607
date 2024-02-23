@@ -1,0 +1,122 @@
+---
+title: "Assignment – Tidying and Transforming Data"
+author: "Naomi Buell"
+format: html
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+# load packages
+library(dplyr)
+library(tidyverse)
+library(readr)
+library(janitor)
+```
+
+## Introduction
+
+In this assignment, I create a CSV file of airline flights, cities, and delays, and tidied and transformed the wide data.
+
+## Part 1: Read data
+
+I created the .CSV file that includes all of the flight information as specified in the assignment instructions and uploaded it to my github repo for easy access.
+
+Below, I read the information from my .CSV file into R, and use tidyr and dplyr to tidy and transform my data.
+
+```{r read data}
+#| label: read, tidy, and transform data
+
+flights <-
+  read_csv("https://raw.githubusercontent.com/naomibuell/DATA607/main/Week5Assgn.csv",) |>
+  fill(1) |>
+  pivot_longer(cols = -c(1:2),
+               names_to = "city",
+               values_to = "count") |>
+  clean_names() |> 
+  rename(airline = x1,
+         arrival_delay = x2) |> 
+  mutate(
+    airline = as.factor(airline),
+    arrival_delay = as.factor(arrival_delay),
+    city = as.factor(city)
+  ) |> 
+  na.omit(count)
+```
+
+See my tidied, long data set below:
+
+```{r}
+#| label: browse
+head(flights)
+```
+
+## Part 2: Analyze
+
+I perform analysis below to compare the arrival delays for the two airlines.
+
+Alaska is delayed 13% of the time, while America West Airlines is only delayed 11% of the time. Based on this, I'd rather fly America West, regardless of the city I'm traveling to.
+
+```{r}
+#| label: perc delays by airline
+#| message: false
+#| warning: false
+
+flights_sum <- flights |>
+  group_by(airline, arrival_delay) |>
+  summarise(sum   = sum(count)) |>
+  group_by(airline) |>
+  mutate(perc = sum / sum(sum))
+
+head(flights_sum)
+```
+
+I illustrate the slight difference in airline delay rate by comparing the shaded portions of the bars below:
+
+```{r}
+#| label: compare props
+#| message: false
+#| warning: false
+
+flights_sum |>
+  ggplot(aes(x = airline,
+             y = perc,
+             fill = arrival_delay)) +
+  geom_bar(stat = "identity", position = "stack")
+  
+```
+
+Next, I compare these same rates by city. Below, we can compare the proportion of delays by airline and by city with these side-by-side bar plots. For any given city, Alaska Airlines flights are less likely to have an arrival delay there than America West Airlines. In this case, if I already have a city in mind, I'd rather fly Alaskan, as my chances of delay would be lower.
+
+```{r}
+#| label: calc percentages by airline and city
+
+# Calculate percentages of delayed vs. on time flighty by airline and city.
+flights_by_airline_city <- flights |>
+  group_by(airline, city) |>
+  mutate(perc_airline_city = count / sum(count) * 100)
+
+# Bar plot comparing delay rate of airlines by city
+flights_by_airline_city |>
+  ggplot(aes(
+    x = city,
+    y = count,
+    fill = arrival_delay,
+    label = paste0(round(perc_airline_city), "%")
+  )) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_text(position = position_stack(vjust = .5), size = 2.4) +
+  labs(title = "Airline Performance",
+       x = "City",
+       y = "Count",
+       fill = "Status") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_wrap(flights$airline) 
+
+```
+
+## Conclusion
+
+In conclusion, American West performs better in overall percentage of on-time flights, but Alaskan Airlines performs better in each city-specific percentage of on-time flights–the choice of airline depends on whether you prioritize overall delay rates or delay rates for a specific city. **Since people typically pick their destination first and airline second, I think Alaskan Airlines is the better choice**. For further research, I'd be curious to have data on more cities to check the rate of delays for further analysis. I'd also be curious about the duration of these delays—not just count. For example, Alaska Airlines may generally have much longer delays than American West, but we wouldn't know this from the current data.
