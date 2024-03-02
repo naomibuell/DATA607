@@ -64,12 +64,17 @@ NSDUH <- read_csv(NSDUH_path) |>
     rc_pain_relievers_past_year_misuse == "1 - Misused within the past year",
     # keep only misuse prevalences
     state != "Overall" # only keeping state values, dropping national
-  ) |>
-  select(-c(
-    starts_with("total"),
-    starts_with("row"),
-    rc_pain_relievers_past_year_misuse
-  ))
+  ) |>       
+  # removing exxtra variables
+  select(
+    -c(
+      starts_with("total"),
+      starts_with("row"),
+      rc_pain_relievers_past_year_misuse,
+      weighted_count,
+      count_se
+    )
+  )
 ```
 
 I also add in a region variable (from a built-in data set) and a variable for whether a state has expanded Medicaid expansion for analysis from [KFF](https://www.kff.org/affordable-care-act/state-indicator/state-activity-around-expanding-medicaid-under-the-affordable-care-act/?currentTimeframe=0&sortModel=%7B%22colId%22:%22Location%22,%22sort%22:%22asc%22%7D).
@@ -165,7 +170,7 @@ r = cor(NSDUH_tidy$expanded, NSDUH_tidy$prevalence)
 r_sqrd = r^2
 ```
 
-There is a very weak negative correlation between the binary variable indicating whether a state had Medicaid expansion and the prevalence of opioid use disorder (r = `r round(r, 2)`)--as the presence of Medicaid expansion increases (coded as 1), the prevalence of opioid misuse tends to decrease, and vice versa. Only `r round(r_sqrd*100, 0)`% of variance in opioid misuse prevalence can be explained by Medicaid expansion; the remaining `r round((1-r_sqrd)*100, 0)`% of the variance may be influenced by other factors not considered in this analysis. Though there may be a slight tendency for states with Medicaid expansion to have lower opioid misuse prevalence, the relationship is not strong enough to make definitive conclusions.
+There is a very weak negative correlation between the binary for whether a state had Medicaid expansion and the prevalence of opioid use disorder (r = `r round(r, 2)`)--with Medicaid expansion, there may be a slight tendency for the prevalence of opioid misuse to decrease, and vice versa. Only `r round(r_sqrd*100, 0)`% of variance in opioid misuse prevalence can be explained by Medicaid expansion; the remaining `r round((1-r_sqrd)*100, 0)`% of the variance may be influenced by other factors not considered in this analysis.
 
 ```{r}
 NSDUH_tidy |>
@@ -222,6 +227,7 @@ Here I analyze population growth trends and determine the correlation between po
 
 ```{r}
 #| label: world pop trends (top 15)
+#| warning: false
 
 top_countries <- world_pop |> 
   filter(rank <= 15) |> 
@@ -248,14 +254,20 @@ other_stats <- top_countries |>
 Countries generally tend to increase their population over time (with the exception of China). India is soon expected to surpass China in population size. Outside of the top two largest countries in terms of population, China and India, which range from `r top_stats$min` billion to `r top_stats$max` billion over the `r top_stats$pd`-year period, the other countries in the top 15 have drastically smaller populations, all below `r other_stats$max` billion.
 
 ```{r}
-#| label: world population density x population correlation
-
-r = cor(world_pop$density, world_pop$population)
-r_sqrd = r^2
-
+#| label: world population density x population correlation 1
+ggplot(world_pop, aes(x = density, y = population)) +
+  geom_point()
 ```
 
-There is a very weak correlation between population density (at the single point in time when data was pulled) and population over time (r = `r round(r, 2)`). Only `r round(r_sqrd*100, 0)`% of variance in population can be explained by density. Since this is very close to zero, there is little evidence of a relationship between population and density in this data.
+The scatterplot of density vs. population shows no discernible pattern.
+
+```{r}
+#| label: world population density x population correlation 2
+r = cor(world_pop$density, world_pop$population)
+r_sqrd = r^2
+```
+
+Based on the correlation coefficient, there is a very weak correlation between population density (at the single point in time when data was pulled) and population over time (r = `r round(r, 2)`). Only `r round(r_sqrd*100, 2)`% of variance in population can be explained by density. Since this is very close to zero, there is little evidence of a relationship between population and density in this data.
 
 ### Conclusion
 
@@ -380,8 +392,8 @@ milk_diffs <- milk_analysis |>
          abs_diff = abs(diff)) 
 ```
 
-As the graph above shows, whole milk has not always been produced more than skim or other lower fat milks. The lead whole milk had over non-whole milk peaked in `r milk_diffs$year[which.max(milk_diffs$diff)]` at `r round(max(milk_diffs$diff), 2)` billion more pounds per capita available for whole than non-whole milks. In `r milk_diffs$year[which.min(milk_diffs$abs_diff)]` however, whole milk switched from the leading milk per capita, becoming surpassed by skim and other lower fat milks.
+As the graph above shows, whole milk has not always been produced more than skim or other lower fat milks. The lead whole milk had over non-whole milk peaked in `r milk_diffs$year[which.max(milk_diffs$diff)]` at `r round(max(milk_diffs$diff), 2)` billion more pounds per capita available for whole than non-whole milks. In `r milk_diffs$year[which.min(milk_diffs$abs_diff)]` however, whole milk switched from being the leading milk per capita, getting surpassed by skim and other lower fat milks.
 
 ### Conclusion
 
-In conclusion, the decline in whole milk's popularity and the shift to lower-fat milk consumption began in the 1960s, with non-whole milks taking over the lead in `r milk_diffs$year[which.max(milk_diffs$diff)]`. Though non-whole milks had been increasing in availability since the '50s, in recent years (since 2010), their availability has been dropping. I wonder if this is due to the rise in alternative milks, like soy and nut milks, where folks are substituting skim or lower fat milks with vegan milks. Data on alternative milks are not available in this USDA data set, but would it would be interesting to investigate recent substitution effects.
+In conclusion, the decline in whole milk's popularity and the shift to lower-fat milk consumption began in the 1960s, with non-whole milks taking over the lead in `r milk_diffs$year[which.max(milk_diffs$diff)]`. Though non-whole milks had been increasing in availability since the '50s, in recent years (since 2010), their availability has been dropping. I wonder if this is due to the rise in alternative milks, like soy and nut milks, where folks are substituting skim or lower fat milks with vegan milks. Data on alternative milks are not available in this USDA data set, but would it would be interesting to investigate potential substitution effects.
