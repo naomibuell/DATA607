@@ -1,0 +1,387 @@
+---
+title: "Project 2 - Data Transformation"
+author: "Naomi Buell"
+format: html
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+# load packages
+library(dplyr)
+library(tidyverse)
+library(readr)
+library(janitor)
+library(readxl)
+library(stringr)
+```
+
+## Introduction
+
+In this assignment, I prepare different data sets for downstream analysis work. I chose the following three data sets identified in the Week 6 Discussion items:
+
+1.  [NSDUH Prescription Pain Reliever Misuse by State](https://datatools.samhsa.gov/nsduh/2019/nsduh-2018-2019-rd02yr/crosstab?row=PNRNMYR&column=STUSAB&weight=DASWT_1)
+
+2.  [World Population History and Projections](https://www.kaggle.com/datasets/milanvaddoriya/world-population-data/download?datasetVersionNumber=1)
+
+3.  [USDA National Food Availability Trends: Milk](https://www.ers.usda.gov/webdocs/DataFiles/50472/dyfluid.xlsx?v=8029.7)
+
+### Generate CSVs
+
+To begin, I added the three .CSV files using, the "wide" structure, as they appeared in their discussion threads to my github. They are downloaded directly from the source linked on the discussion forum and include all of the information in the original data sets. Github paths are stored below for future reference:
+
+```{r}
+#| label: paths
+NSDUH_path <- "https://raw.githubusercontent.com/naomibuell/DATA607/main/STUSAB%20x%20PNRNMYR.csv"
+pop_path <- "https://raw.githubusercontent.com/naomibuell/DATA607/main/world_pop_data.csv"
+milk_path <- "https://raw.githubusercontent.com/naomibuell/DATA607/main/dyfluid.csv"
+```
+
+## NSDUH Prescription Pain Reliever Misuse by State
+
+The first data set I work with will be from the 2018-19 National Survey on Drug Use and Health (NSDUH) from the Substance and Mental Health Services Administration (SAMHSA). This data set shows the prevalence of pain reliever misuse in each state.
+
+### Import, tidy, and transform NSDUH data
+
+I read the information from the .CSV file into R, and use dplyr to tidy and transform the NSDUH data. Importantly, I make the states my row-level analysis observation to tidy my data and make it easier to analyze.
+
+```{r}
+#| label: import NSDUH data
+#| warning: false
+
+NSDUH <- read_csv(NSDUH_path) |>
+  clean_names() |>
+  rename(
+    state = state_us_abbreviation,
+    prevalence = column_percent,
+    se = column_percent_se,
+    ci_lower = column_percent_ci_lower,
+    ci_upper = column_percent_ci_upper
+  ) |>
+  filter(
+    rc_pain_relievers_past_year_misuse == "1 - Misused within the past year",
+    # keep only misuse prevalences
+    state != "Overall" # only keeping state values, dropping national
+  ) |>
+  select(-c(
+    starts_with("total"),
+    starts_with("row"),
+    rc_pain_relievers_past_year_misuse
+  ))
+```
+
+I also add in a region variable (from a built-in data set) and a variable for whether a state has expanded Medicaid expansion for analysis from [KFF](https://www.kff.org/affordable-care-act/state-indicator/state-activity-around-expanding-medicaid-under-the-affordable-care-act/?currentTimeframe=0&sortModel=%7B%22colId%22:%22Location%22,%22sort%22:%22asc%22%7D).
+
+```{r}
+#| label: add analysis vars
+#| warning: false
+
+# Get regional data from built in dataset
+regions <- data.frame(state.abb, state.region, state.name) |>
+  rename(state = state.abb,
+         region = state.region,
+         Location = state.name)
+
+NSDUH_regions <-
+  left_join(NSDUH, regions, by = "state") |>
+  mutate(Location = if_else(state == "DC", "District of Columbia", Location))
+
+# Get medicaid expansion status
+medicaid_exp <-
+  read_csv(
+    "https://raw.githubusercontent.com/naomibuell/DATA607/main/medicaid_expansion.csv",
+    skip = 2
+  )
+
+NSDUH_medicaid <-
+  left_join(NSDUH_regions, medicaid_exp, by = "Location") |>
+  clean_names() |>
+  mutate(expanded = abs(as.numeric(as.factor(status_of_medicaid_expansion_decision)) -
+                   2)) |>
+  select(-c("location", "status_of_medicaid_expansion_decision"))
+```
+
+Now that the data has been transformed with the appropriate variables, I do some final cleaning.
+
+```{r}
+#| label: clean NSDUH
+NSDUH_tidy <- NSDUH_medicaid |> 
+  mutate(
+    state = as.factor(state),
+    ci_lower = parse_double(ci_lower),
+    ci_upper = parse_double(ci_upper)
+    )
+```
+
+Here is the final tidied data set for analysis:
+
+```{r}
+#| label: final NSDUH df
+
+head(NSDUH_tidy)
+```
+
+### Analysis
+
+First, I compare and rank prevalence by state, checking for regional patterns.
+
+```{r}
+NSDUH_tidy |> 
+  arrange(desc(prevalence)) |> 
+  head(5)
+```
+
+Alabama, Oregon, Colorado, Kentucky, and Montana are the states with the top 5 highest opioid misuse rates.
+
+```{r}
+NSDUH_tidy |> 
+  arrange(desc(1-prevalence)) |> 
+  head(5)
+```
+
+Illinois, New England, South Dakota, Wyoming, and New York are in the bottom 5 states with the lowest rates of opioid misuse.
+
+The following plot illustrates distributions of misuse prevalence by region:
+
+```{r}
+#| label: region plot
+NSDUH_tidy |>
+  na.omit() |> 
+  ggplot(aes(x = region, y = prevalence)) +
+  geom_boxplot() +
+  coord_flip()
+```
+
+The northeast generally has the lowest rates of pain reliever misuse (mean = `r round(mean(NSDUH_tidy$prevalence[NSDUH_tidy$region == "Northeast"], na.rm = TRUE), 3)`) and the western region generally has the highest (mean = `r round(mean(NSDUH_tidy$prevalence[NSDUH_tidy$region == "West"], na.rm = TRUE), 3)`). Alabama is the high outlier in the south. Wyoming is the low outlier in the west.
+
+Next, I determine if there is a correlation between state pain reliever misuse and whether [states have expanded medicaid](https://www.kff.org/affordable-care-act/issue-brief/status-of-state-medicaid-expansion-decisions-interactive-map/).
+
+```{r}
+#| label: prevalence x Medicaid expansion correlation
+
+r = cor(NSDUH_tidy$expanded, NSDUH_tidy$prevalence)
+r_sqrd = r^2
+```
+
+There is a very weak negative correlation between the binary variable indicating whether a state had Medicaid expansion and the prevalence of opioid use disorder (r = `r round(r, 2)`)--as the presence of Medicaid expansion increases (coded as 1), the prevalence of opioid misuse tends to decrease, and vice versa. Only `r round(r_sqrd*100, 0)`% of variance in opioid misuse prevalence can be explained by Medicaid expansion; the remaining `r round((1-r_sqrd)*100, 0)`% of the variance may be influenced by other factors not considered in this analysis. Though there may be a slight tendency for states with Medicaid expansion to have lower opioid misuse prevalence, the relationship is not strong enough to make definitive conclusions.
+
+```{r}
+NSDUH_tidy |>
+  group_by(expanded) |> 
+  na.omit() |> 
+  ggplot(aes(x = expanded, y = prevalence, group = expanded)) +
+  geom_boxplot() +
+  coord_flip()
+```
+
+On average, states who have adopted Medicaid expansion have slightly lower rates of pain reliever misuse than those that have adopted Medicaid expansion (mean = `r round(mean(NSDUH_tidy$prevalence[NSDUH_tidy$expanded == 1], na.rm = TRUE), 3)` vs. `r round(mean(NSDUH_tidy$prevalence[NSDUH_tidy$expanded == 0], na.rm = TRUE), 3)`).
+
+### Conclusion
+
+In conclusion, the Northeast had the lowest rates of pain reliever misuse and the West had the highest. There is no evidence of correlation between whether states have expanded medicaid and their rate of pain reliever misuse.
+
+## World Population History and Projections
+
+The second data set I work with is from the world population clock maintained by the US Census Bureau. The data set shows the population over time and by country, including projected populations up to the year 2050.
+
+### Import, tidy, and transform population data
+
+I read the information from the .CSV file into R, and use dplyr to tidy and transform the world population data. Importantly, I change the analysis observation to the country-year level (i.e., one row for each combination of country and year).
+
+```{r}
+#| label: import world population data
+#| warning: false
+
+world_pop <- read_csv(pop_path) |> 
+  clean_names() |> 
+  select(-x1) |> 
+  pivot_longer(
+    cols = starts_with("x"), 
+    names_to = "year", 
+    values_to = "population"
+  ) |> 
+  mutate(
+    year = as.integer(str_replace_all(year, "[x]", ""))
+  )
+```
+
+Here is my tidy data set for analysis:
+
+```{r}
+#| label: final world pop projections df
+
+head(world_pop)
+
+```
+
+### Analysis
+
+Here I analyze population growth trends and determine the correlation between population density and population growth.
+
+```{r}
+#| label: world pop trends (top 15)
+
+top_countries <- world_pop |> 
+  filter(rank <= 15) |> 
+  mutate(population = population/1000000000) # reporting population in billions
+
+ggplot(top_countries, aes(x = year, y = population, color = country)) +
+  geom_smooth(se = FALSE) + 
+  labs(y = "Population in Billions")
+
+# Get range of values for top 2 countries, China and India
+top_stats <- top_countries |>
+  filter(country == "China" | country == "India") |>
+  summarise(min = round(min(population), 2),
+            max = round(max(population), 2),
+            pd = max(year) - min(year))
+
+# Get range for remaining countries
+other_stats <- top_countries |>
+  filter(country != "China" & country != "India") |>
+  summarise(min = round(min(population), 2),
+            max = round(max(population), 2))
+```
+
+Countries generally tend to increase their population over time (with the exception of China). India is soon expected to surpass China in population size. Outside of the top two largest countries in terms of population, China and India, which range from `r top_stats$min` billion to `r top_stats$max` billion over the `r top_stats$pd`-year period, the other countries in the top 15 have drastically smaller populations, all below `r other_stats$max` billion.
+
+```{r}
+#| label: world population density x population correlation
+
+r = cor(world_pop$density, world_pop$population)
+r_sqrd = r^2
+
+```
+
+There is a very weak correlation between population density (at the single point in time when data was pulled) and population over time (r = `r round(r, 2)`). Only `r round(r_sqrd*100, 0)`% of variance in population can be explained by density. Since this is very close to zero, there is little evidence of a relationship between population and density in this data.
+
+### Conclusion
+
+In conclusion, all countries' populations tend to rise over time, historically and based on future projection, with the exception of China. We did not find any evidence that population size was correlated with population density.
+
+# USDA National Food Availability Trends: Milk
+
+The final data set I work with is from the USDA economic research service and describes per capita fluid milk availability in the U.S. since 1909.
+
+### Import, tidy, and transform milk data
+
+I read the information from the .CSV file into R, and use dplyr to tidy and transform the data on milk. I remove the intermediate "total" columns and transform the observation level to year and type of milk. I.e., there will be one row for each combination of year and milk type.
+
+```{r}
+#| label: import milk data
+#| warning: false
+# read in data
+milk_raw <- read_csv(milk_path, skip_empty_rows = TRUE, skip = 0) |>
+  clean_names() |>
+  mutate_all( ~ str_replace_all(str_replace_all(as.character(.), "-", ""), ",", "")) # removing dashes and commas
+
+# get column names
+milk_cols <- milk_raw |>
+  slice(1:6) |> # for the first 6 rows,
+  summarise_all(~ ifelse(all(is.na(.)), NA, paste(na.omit(.), collapse = " "))) |> # concatenating text down each column to create name for each column
+  mutate_all(~ str_replace_all(as.character(.), c("  " = " ")))  # removing double spaces from the data
+
+colnames(milk_raw) <- milk_cols # assign column names and clean
+
+milk_clean <- milk_raw |>
+  clean_names() |> # revise column names
+  rename(
+    population = u_s_population_july_11_millions,
+    whole_plain = total_plain,
+    whole_flavored = flavored2,
+    two_perc = lower_fat_and_skim_milk_plain_2_percent,
+    one_perc = x1_percent,
+    non_whole_flavored = flavored_other_than_whole2,
+    skim_buttermilk_consumed = skim_milk_and_buttermilk_consumed_where_produced,
+    eggnog = other_beverage_milk_eggnog3
+  ) |>
+  select(-c( # remove unnecessary rows
+    starts_with("na"),
+    starts_with("whole_milk_plain_consu"),
+    sales,
+    starts_with("total")
+  )) |>
+  mutate( # fix variable types
+    year = parse_double(year),
+    population = parse_double(population),
+    whole_plain = parse_double(whole_plain),
+    whole_flavored = parse_double(whole_flavored),
+    two_perc = parse_double(two_perc),
+    one_perc = parse_double(one_perc),
+    non_whole_flavored = parse_double(non_whole_flavored),
+    buttermilk = parse_double(buttermilk),
+    skim_milk = parse_double(skim_milk),
+    skim_buttermilk_consumed = parse_double(skim_buttermilk_consumed),
+    eggnog = parse_double(eggnog),
+    miscellaneous = parse_double(miscellaneous),
+  ) |>
+  filter(!is.na(year)) |> # remove extra rows
+  pivot_longer( # transform level of observation
+    cols = -c(year, population),
+    names_to = "type",
+    values_to = "pounds_per_cap"
+  ) |>
+  mutate(type = as.factor(type)) # add pounds, unadjusted for capita
+
+```
+
+Here is the tidied and transformed data set for analysis:
+
+```{r}
+#| label: final milk data set
+
+head(milk_clean)
+```
+
+### Analysis
+
+I analyze this data to better understand the shift between two types of products whole and lower-fat milk consumption. Below shows trends in all types of milk's availability in millions of pounds per capita:
+
+```{r}
+#| label: plot milk
+#| warning: false
+
+# pounds per capita
+ggplot(milk_clean, aes(x = year, y = pounds_per_cap, color = type)) +
+  geom_smooth(se = FALSE, size = .5) + 
+  geom_point(size = .5) +
+  labs(y = "Million Pounds Per Capita Available")
+```
+
+Whole (plain) milk sticks out as the best performer by far historically, surpassed only recently by two-percent.
+
+The plot below compares trends in whole vs. lower-fat milk consumption (plotting the total pounds of whole milk and non-whole milk produced):
+
+```{r}
+#| label: compare whole vs. not
+#| warning: false
+
+# gen binary for whole milk vs. not for grouping and comparison
+milk_analysis <- milk_clean |>
+  mutate(whole = str_starts(type, "whole"),
+         pounds_per_cap = pounds_per_cap / 1000) |> # switching from millions to billions
+  group_by(year, whole) |>
+  summarise(sum = sum(pounds_per_cap, na.rm = TRUE))
+
+# plot pounds per capita: whole vs. not
+ggplot(milk_analysis, aes(x = year, y = sum, color = whole)) +
+  geom_point(size = .5) +
+  geom_smooth() +
+  labs(y = "Billion Pounds Per Capita Available")
+
+# Get diffs:
+milk_diffs <- milk_analysis |>
+  pivot_wider(names_from = whole,
+              values_from = sum) |>
+  clean_names() |>
+  mutate(diff = true - false, # get differences between whole and non-whole pounds per capita
+         abs_diff = abs(diff)) 
+```
+
+As the graph above shows, whole milk has not always been produced more than skim or other lower fat milks. The lead whole milk had over non-whole milk peaked in `r milk_diffs$year[which.max(milk_diffs$diff)]` at `r round(max(milk_diffs$diff), 2)` billion more pounds per capita available for whole than non-whole milks. In `r milk_diffs$year[which.min(milk_diffs$abs_diff)]` however, whole milk switched from the leading milk per capita, becoming surpassed by skim and other lower fat milks.
+
+### Conclusion
+
+In conclusion, the decline in whole milk's popularity and the shift to lower-fat milk consumption began in the 1960s, with non-whole milks taking over the lead in `r milk_diffs$year[which.max(milk_diffs$diff)]`. Though non-whole milks had been increasing in availability since the '50s, in recent years (since 2010), their availability has been dropping. I wonder if this is due to the rise in alternative milks, like soy and nut milks, where folks are substituting skim or lower fat milks with vegan milks. Data on alternative milks are not available in this USDA data set, but would it would be interesting to investigate recent substitution effects.
