@@ -41,7 +41,7 @@ milk_path <- "https://raw.githubusercontent.com/naomibuell/DATA607/main/dyfluid.
 
 ## NSDUH Prescription Pain Reliever Misuse by State
 
-The first data set I work with will be from the 2018-19 National Survey on Drug Use and Health (NSDUH) from the Substance and Mental Health Services Administration (SAMHSA). This data set shows the prevalence of pain reliever misuse in each state.
+The first data set I work with will be from the 2018-19 National Survey on Drug Use and Health (NSDUH) from the Substance and Mental Health Services Administration (SAMHSA). This data set shows the prevalence of pain reliever misuse in each state. It is untidy because it has three rows for each state: a row for the proportion misusing opioids (rc_pain_relievers_past_year_misuse = 1), the proportion not misusing opioids (rc_pain_relievers_past_year_misuse = 0), and the sum of these two (rc_pain_relievers_past_year_misuse = Overall). Splitting it up this way is redundant–if we know one of these proportions, we can calculate the other two (e.g., 1 - proportion misusing = proportion not misusing. I aim to tidy the data for analysis by creating 1 row for each state, where the observation records the prevalence of *misuse* in the past year.
 
 ### Import, tidy, and transform NSDUH data
 
@@ -65,7 +65,7 @@ NSDUH <- read_csv(NSDUH_path) |>
     # keep only misuse prevalences
     state != "Overall" # only keeping state values, dropping national
   ) |>       
-  # removing exxtra variables
+  # removing extra variables
   select(
     -c(
       starts_with("total"),
@@ -108,7 +108,7 @@ NSDUH_medicaid <-
   select(-c("location", "status_of_medicaid_expansion_decision"))
 ```
 
-Now that the data has been transformed with the appropriate variables, I do some final cleaning.
+Now that the data has been transformed with the appropriate variables, I do some final cleaning by revising data types.
 
 ```{r}
 #| label: clean NSDUH
@@ -189,11 +189,11 @@ In conclusion, the Northeast had the lowest rates of pain reliever misuse and th
 
 ## World Population History and Projections
 
-The second data set I work with is from the world population clock maintained by the US Census Bureau. The data set shows the population over time and by country, including projected populations up to the year 2050.
+The second data set I work with is from the world population clock maintained by the US Census Bureau. The data set shows the population over time and by country, including projected populations up to the year 2050. This data set is untidy in the context of my analysis because it has multiple year's worth of population observtions in one row assigned to a particular country. I aim to tidy this data set by lengthening it, creating one row for each country and year (i.e., there will be one row for each possible combination of country and year).
 
 ### Import, tidy, and transform population data
 
-I read the information from the .CSV file into R, and use dplyr to tidy and transform the world population data. Importantly, I change the analysis observation to the country-year level (i.e., one row for each combination of country and year).
+I read the information from the .CSV file into R, and use dplyr to tidy and transform the world population data. Importantly, I use the `pivot_longer()` command to convert the analysis observation to be on the country-year level.
 
 ```{r}
 #| label: import world population data
@@ -275,11 +275,11 @@ In conclusion, all countries' populations tend to rise over time, historically a
 
 # USDA National Food Availability Trends: Milk
 
-The final data set I work with is from the USDA economic research service and describes per capita fluid milk availability in the U.S. since 1909.
+The final data set I work with is from the USDA economic research service and describes per capita fluid milk availability in the U.S. since 1909. This data set is untidy because categories, or types, of milk are used as column headers (e.g., whole milk is coded as the name of a variable instead of as the level of a factor-type variable). I'll aim to tidy this data set by lengthening it, creating an observation for each year and type of milk.
 
 ### Import, tidy, and transform milk data
 
-I read the information from the .CSV file into R, and use dplyr to tidy and transform the data on milk. I remove the intermediate "total" columns and transform the observation level to year and type of milk. I.e., there will be one row for each combination of year and milk type.
+I read the information from the .CSV file into R, and use dplyr to tidy and transform the data on milk. There are also a number of columns calculating subtotals (e.g., there is a column for total plain and flavored whole milk) in addition to the grand total. I remove these totals columns so I can work with just the raw numbers for each type of milk–I can calculate totals and subtotals as needed in my analysis. Importantly, I transform the observation level to year and type of milk. I.e., there will be one row for each combination of year and milk type.
 
 ```{r}
 #| label: import milk data
