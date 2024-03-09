@@ -1,0 +1,25 @@
+{
+    "books": [
+        {
+        "title": "Freakonomics",
+        "authors": "Steven D. Levitt, Stephen J. Dubner",
+        "pages": 315,
+        "pace": "Slow-paced",
+        "mood": "Informative"
+      },
+      {
+        "title": "The Big Short",
+        "authors": "Michael Lewis",
+        "pages": 320,
+        "pace": "Fast-paced",
+        "mood": "Informative"
+      },
+      {
+        "title": "Manias, Panics, and Crashes",
+        "authors": "Charles P. Kindleberger",
+        "pages": 304,
+        "pace": "Slow-paced",
+        "mood": "Challenging"
+      }
+    ]
+  }
