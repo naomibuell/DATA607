@@ -1,0 +1,211 @@
+---
+title: "Assignment – Working with XML and JSON in R"
+author: "Naomi Buell"
+format: html
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| include: false
+
+# load packages
+library(tidyverse)
+library(xml2)
+library(rvest)
+library(jsonlite)
+library(janitor)
+```
+
+## Introduction
+
+In this assignment, I pick three of my favorite books on Economics and store information on these books in HTML, XML, and JSON formats. I will load the information from each of the three formats into separate R data frames, and determine whether the three data frames are identical.
+
+### Book and Attribute Selection
+
+I chose the following three books and collected title, authors, number of pages, pace, and mood according to [StoryGraph](https://app.thestorygraph.com/), a website for reviewing books, below:
+
+1.  "Freakonomics: A Rogue Economist Explores the Hidden Side of Everything" by Steven D. Levitt and Stephen J. Dubner. It is 320 pages long, fast-paced, and has an informative mood.
+
+2.  "The Big Short: Inside the Doomsday Machine" by Michael Lewis. This book is 315 pages long, slow-paced, and has an informative mood.
+
+3.  "Manias, Panics, and Crashes: A History of Financial Crises" by Charles P. Kindleberger. This book is 304 pages long, is slow-paced, and has a challenging mood.
+
+Next, I will take the information above, and separately create three files which store the book’s information in HTML, XML, and JSON formats.
+
+### HTML
+
+I wrote HTML code (HTML table rendered below) and saved it online as file called "favorite_books.html" on my GitHub.
+
+```{=html}
+<html>
+<body>
+  
+  <table>
+<tr>
+  <th>Title</th>
+  <th>Authors</th>
+  <th>Pages</th>
+  <th>Pace</th>
+  <th>Mood</th>
+</tr>
+<tr>
+  <td>Freakonomics</td>
+  <td>Steven D. Levitt, Stephen J. Dubner</td>
+  <td>315</td>
+  <td>Slow-paced</td>
+  <td>Informative</td>
+</tr>
+<tr>
+  <td>The Big Short</td>
+  <td>Michael Lewis</td>
+  <td>320</td>
+  <td>Fast-paced</td>
+  <td>Informative</td>
+</tr>
+<tr>
+  <td>Manias, Panics, and Crashes</td>
+  <td>Charles P. Kindleberger</td>
+  <td>304</td>
+  <td>Slow-paced</td>
+  <td>Challenging</td>
+</tr>
+</table>
+
+</body>
+</html>
+```
+### XML
+
+Next, I do the same thing, but create an XML file. The XML content is displayed below, but is saved as a separate file on GitHub.
+
+``` xml
+<books>
+  <book>
+    <title>Freakonomics</title>
+    <authors>Steven D. Levitt, Stephen J. Dubner</authors>
+    <pages>315</pages>
+    <pace>Slow-paced</pace>
+    <mood>Informative</mood>
+  </book>
+  <book>
+    <title>The Big Short</title>
+    <authors>Michael Lewis</authors>
+    <pages>320</pages>
+    <pace>Fast-paced</pace>
+    <mood>Informative</mood>
+  </book>
+  <book>
+    <title>Manias, Panics, and Crashes</title>
+    <authors>Charles P. Kindleberger</authors>
+    <pages>304</pages>
+    <pace>Slow-paced</pace>
+    <mood>Challenging</mood>
+  </book>
+</books>
+```
+
+### JSON
+
+Lastly, I created the same table as a JSON file and saved it online.
+
+``` json
+{
+  "books": [
+      {
+      "title": "Freakonomics",
+      "authors": "Steven D. Levitt, Stephen J. Dubner",
+      "pages": 315,
+      "pace": "Slow-paced",
+      "mood": "Informative"
+    },
+    {
+      "title": "The Big Short",
+      "authors": "Michael Lewis",
+      "pages": 320,
+      "pace": "Fast-paced",
+      "mood": "Informative"
+    },
+    {
+      "title": "Manias, Panics, and Crashes",
+      "authors": "Charles P. Kindleberger",
+      "pages": 304,
+      "pace": "Slow-paced",
+      "mood": "Challenging"
+    }
+  ]
+}
+```
+
+### Load Files in R
+
+The following R code uses rvest, xml2, and jsonlite packages to load the information from each of the three file sources into separate R data frames.
+
+First, I load the HTML file using `xml2::read_html()` and `rvest::html_table()` commands. I save it as a data frame in R called `html_books_df`.
+
+```{r}
+#| label: html to df
+
+# Read the HTML file, creating a list of length 1 table (html file contained a single table)
+html_tables_list <- read_html("https://raw.githubusercontent.com/naomibuell/DATA607/main/favorite_books.html") |>
+  html_table(fill = TRUE) # Extract the table using html_table()
+
+html_books_df <-
+  html_tables_list[[1]] |>  # Access table from list of tables from HTML
+  as.data.frame() |>  # Convert the table to a data frame
+  clean_names()
+```
+
+Next, I use the xml2 package to lad the XML file to an R data frame called `xml_books_df`:
+
+```{r}
+#| label: XML to df
+
+xml_books_data <- read_xml("https://raw.githubusercontent.com/naomibuell/DATA607/main/favorite_books.xml")
+
+# Extract data from the XML file to create a data frame. Each column is extracted from the XML one at a time as a character vector, then combined as one df.
+xml_books_df <- data.frame(
+  title = xml_books_data |> # For the tittle column, 
+    xml_find_all("//book/title") |> # get all title elements (within book elements),
+    xml_text(), # and extract text (as string vector).
+  authors = xml_books_data |>
+    xml_find_all("//book/authors") |>
+    xml_text(),
+  pages = xml_books_data |>
+    xml_find_all("//book/pages") |>
+    xml_text() |>
+    as.integer(), # change to integer vector.
+  pace = xml_books_data |> 
+    xml_find_all("//book/pace") |> 
+    xml_text(),
+  mood = xml_books_data |> 
+    xml_find_all("//book/mood") |>
+    xml_text()
+)
+
+```
+
+Lastly, I do the same for the JSON file using the `jsonlite::fromJSON` command. The new data frame is called `json_books_df`.
+
+```{r}
+#| label: JSON to df
+
+# Read the JSON file into a data frame
+json_books_df <- fromJSON("https://raw.githubusercontent.com/naomibuell/DATA607/main/favorite_books.json") |> 
+  as.data.frame() |> 
+  clean_names()
+```
+
+## Conclusion
+
+Here are the final three data frames:
+
+```{r}
+#| label: final dfs
+
+head(html_books_df)
+head(xml_books_df)
+head(json_books_df)
+```
+
+The three data frames weren't all identical when loaded from GitHub as their original file types into R. I had to use different techniques on each to get them to have the proper shape, variable names, and variable types, depending on original file type. Ultimately, they were all the same shape (3 obs. of 5 variables), but I manually created this shape for the XML data frame column by column (by compiling 5 vectors of length 3, one for each title column, authors column, etc.), while the other 2 files had that shape immediately when loading using the HTML or JSON packages. Variable names differed–the JSON command automatically added the "book" element as a prefix to each variable name, while XML and HTML variables did not include any prefixes like this. For the pages variable, this was originally a string variable when extracted from XML, which I updated to integer using the `as.integer()` command, but for HTML and JSON files, these were automatically loaded as integers.
