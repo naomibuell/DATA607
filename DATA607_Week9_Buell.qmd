@@ -1,0 +1,161 @@
+---
+title: "Assignment – Web APIs"
+author: "Naomi Buell"
+format: html
+editor: visual
+---
+
+```{r}
+#| label: load packages
+library(tidyverse)
+library(jsonlite)
+library(httr2)
+library(janitor)
+library(lubridate)
+```
+
+## Introduction
+
+I signed up for the [Article Search API](https://developer.nytimes.com/docs/articlesearch-product/1/overview) from the New York Times. Below is an interface in R to read in the JSON data and transform it into an R data frame.
+
+## Connect to API
+
+First, I sign up for an API key on the New York Times website. Here, I use R Studio API `askForPassword()` function to keep my API key private. The base HTTP request URL is defined below as well. I will be using the Article Search API to get New York Times movie reviews, so I define the filter query accordingly.
+
+```{r}
+#| label: set up API
+#| error: true
+#| message: false
+api_key <- rstudioapi::askForPassword("Authorization Key")
+
+base_url <-
+  "https://api.nytimes.com/svc/search/v2/articlesearch.json?"
+filter <-
+  'section_name%3A%22Movies%22%20AND%20type_of_material%3A%22Review%22'
+```
+
+```{r}
+#| include: false
+# Alternative to API key generated with the askForPassword function for the purposes of rendering my QMD
+api_key <- "mC1y5Hr361gaqmvkjHpGd6WUdiL917vA"
+```
+
+Here, I create is a function to pull data based on the filter and page number parameters, starting from the newest articles.
+
+```{r}
+#| label: create function
+get_movies <- function(filter, page) {
+  url <-
+    paste0(base_url,
+           "fq=",
+           {
+             filter
+           },
+           "sort=newest&page=",
+           {
+             page
+           },
+           "&api-key=",
+           api_key)
+  fromJSON(url, flatten = TRUE)$response$docs |> 
+    clean_names()
+}
+```
+
+## Load JSON data into R data frame
+
+I call the function, iterating through 10 pages of JSON data, appending them together as the data frame `movies_df`. Note that I add a delay in the loop to avoid hitting the rate limit and getting a 429 error.
+
+```{r}
+#| label: load data to df
+
+pages <- c(1:10) # set num pages to iterate through
+movies_df <- data_frame() # initialize data frame
+
+for (page in pages) {
+  movies_df <-
+    get_movies(filter, page) |> # call function
+    rbind(movies_df, .data) # append to df
+  
+  # Add a delay between requests to avoid hitting the rate limit
+  Sys.sleep(12)
+}
+```
+
+Here is the R data frame of NYT JSON movie review data loaded from the NYT API:
+
+```{r}
+#| label: browse df
+
+head(movies_df)
+```
+
+## Cleaning, tidying, and normalization
+
+Next I subset the data frame to several variables of interest and do some variable cleaning before I finalize this data set.
+
+```{r}
+#| label: clean variables
+
+movies_clean <-  movies_df |>
+  select(
+    headline_main,
+    headline_kicker,
+    headline_print_headline,
+    byline_original,
+    abstract,
+    lead_paragraph,
+    keywords,
+    pub_date
+    
+  ) |>
+  mutate(key = row_number(),
+         pub_date = as_datetime(pub_date)) |>
+  arrange(desc(pub_date))
+```
+
+I also normalize the data by creating two unique tables: a `movie` table and a `keywords` table, since the keywords variable in the original data frame was a list-column.
+
+```{r}
+#| label: normalized tables
+
+# create normal movies table
+movies <- movies_clean |>
+  select(-keywords)
+
+head(movies)
+
+# create normal keywords table
+keywords <- movies_clean |>
+  unnest(keywords, keep_empty = TRUE) |>
+  mutate(name = as.factor(name)) |>
+  select(key, name, value)
+
+head(keywords)
+```
+
+Now we can see can browse names of people associated with these movies tagged as keywords in the review, for example:
+
+```{r}
+#| label: alphabetically browse names in keywords
+keywords |> filter(name == "persons") |> select(value) |> distinct() |> arrange(-desc(value))
+```
+
+I like the director Mike Leigh, so, using these normalized tables, I can use the `key` variable to look up the title and abstract of that article he was tagged in:
+
+```{r}
+#| label: browse Mike Leigh
+#| message: false
+
+mike_leigh_movie <-
+  keywords |> filter(value == "Leigh, Mike") |> left_join(movies)
+
+mike_leigh_movie$headline_print_headline
+mike_leigh_movie$abstract
+mike_leigh_movie$lead_paragraph
+mike_leigh_movie$pub_date
+```
+
+## Conclusion
+
+In this assignment, I was able to use an API to get data stored as JSON files from the NYT website to get and manipulate movie review data in R. I was even able to parse through the final data set and find that one of my favorite movie directors wrote a play that was performed back in 1997.
