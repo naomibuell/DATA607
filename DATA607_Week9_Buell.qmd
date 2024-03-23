@@ -7,11 +7,10 @@ editor: visual
 
 ```{r}
 #| label: load packages
+#| message: false
 library(tidyverse)
-library(jsonlite)
-library(httr2)
 library(janitor)
-library(lubridate)
+library(jsonlite)
 ```
 
 ## Introduction
@@ -20,7 +19,9 @@ I signed up for the [Article Search API](https://developer.nytimes.com/docs/arti
 
 ## Connect to API
 
-First, I sign up for an API key on the New York Times website. Here, I use R Studio API `askForPassword()` function to keep my API key private. The base HTTP request URL is defined below as well. I will be using the Article Search API to get New York Times movie reviews, so I define the filter query accordingly.
+First, I sign up for an API key on the New York Times website. Here, I use the `rstudioapi::skForPassword()` function to keep my API key private when running the code in R Studio. For running and rendering all code for the purposes of this markdown, I also alternatively save the API key in an R chunk that I elect not to include in this published version.
+
+The base HTTP request URL is defined below as well. I will be using the Article Search API to get New York Times movie reviews, so I define the filter query accordingly.
 
 ```{r}
 #| label: set up API
@@ -67,18 +68,23 @@ get_movies <- function(filter, page) {
 I call the function, iterating through 10 pages of JSON data, appending them together as the data frame `movies_df`. Note that I add a delay in the loop to avoid hitting the rate limit and getting a 429 error.
 
 ```{r}
-#| label: load data to df
+#| label: load data from API
 
 pages <- c(1:10) # set num pages to iterate through
-movies_df <- data_frame() # initialize data frame
+movies_df <- tibble() # initialize data frame
 
 for (page in pages) {
-  movies_df <-
-    get_movies(filter, page) |> # call function
-    rbind(movies_df, .data) # append to df
-  
-  # Add a delay between requests to avoid hitting the rate limit
-  Sys.sleep(12)
+  success <- FALSE
+  while (!success) { # while success is false,
+    tryCatch({
+      movies_df <-
+        get_movies(filter, page) |> rbind(movies_df, .data) # call function and append to df
+      success <- TRUE # Set success to TRUE if no error occurs
+    }, error = function(e) {
+      # Add a delay between requests to avoid hitting the rate limit
+      Sys.sleep(10)
+    })
+  }
 }
 ```
 
@@ -92,7 +98,7 @@ head(movies_df)
 
 ## Cleaning, tidying, and normalization
 
-Next I subset the data frame to several variables of interest and do some variable cleaning before I finalize this data set.
+Before I finalize this data set, I subset the data frame to several variables of interest and do some variable cleaning.
 
 ```{r}
 #| label: clean variables
@@ -114,7 +120,7 @@ movies_clean <-  movies_df |>
   arrange(desc(pub_date))
 ```
 
-I also normalize the data by creating two unique tables: a `movie` table and a `keywords` table, since the keywords variable in the original data frame was a list-column.
+I also normalize the data by creating two unique tables–a `movie` table and a `keywords` table–since the keywords variable in the original data frame was a list-column.
 
 ```{r}
 #| label: normalized tables
