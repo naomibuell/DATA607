@@ -27,6 +27,8 @@ The base HTTP request URL is defined below as well. I will be using the Article 
 #| label: set up API
 #| error: true
 #| message: false
+#| warning: false
+#| results: hide
 api_key <- rstudioapi::askForPassword("Authorization Key")
 
 base_url <-
@@ -75,7 +77,8 @@ movies_df <- tibble() # initialize data frame
 
 for (page in pages) {
   success <- FALSE
-  while (!success) { # while success is false,
+  while (success == FALSE) {
+    # while success is false,
     tryCatch({
       movies_df <-
         get_movies(filter, page) |> rbind(movies_df, .data) # call function and append to df
