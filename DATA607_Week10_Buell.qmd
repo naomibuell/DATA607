@@ -1,0 +1,394 @@
+---
+title: "Week 10 Assignment"
+author: "Naomi Buell"
+format: html
+editor: visual
+---
+
+```{r}
+#| label: setup
+#| warning: false
+#| message: false
+
+library(tidytext)
+library(tidyverse)
+library(janeaustenr)
+library(textdata)
+library(wordcloud)
+library(reshape2)
+library(scales)
+library(janitor)
+```
+
+## Introduction
+
+In this assignment, I mine text in three ways: 1) by working with an example from *Text Mining with R* (Silge & Robinson, 2024, Chapter 2), 2) by working with a different corpus of my choosing, and 3) by incorporating an additional sentiment lexicon, Loughran.
+
+## *1. Text Mining with R* example
+
+I start by running the primary example from chapter 2 of *Text Mining with R*.
+
+```{r}
+#| label: example code
+#| warning: false
+
+# Get Jane Austen books
+tidy_books <- austen_books() |>
+  group_by(book) |>
+  mutate(linenumber = row_number(),
+         chapter = cumsum(str_detect(
+           text,
+           regex("^chapter [\\divxlc]",
+                 ignore_case = TRUE)
+         ))) |>
+  ungroup() |>
+  unnest_tokens(word, text)
+
+# Get Jane Austen bing sentiment totals every 80 lines
+jane_austen_sentiment <- tidy_books |>
+  inner_join(get_sentiments("bing")) |>
+  count(book, index = linenumber %/% 80, sentiment) |>
+  pivot_wider(names_from = sentiment,
+              values_from = n,
+              values_fill = 0) |>
+  mutate(sentiment = positive - negative)
+
+# Plot sentiments over the course of the books, by book
+ggplot(jane_austen_sentiment, aes(index, sentiment, fill = book)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap( ~ book, ncol = 2, scales = "free_x")
+
+# Get just Pride and Prejudice
+pride_prejudice <- tidy_books |>
+  filter(book == "Pride & Prejudice")
+
+# Get AFINN, bing, and NRC sentiments for Pride and Prejudice
+afinn <- pride_prejudice |>
+  inner_join(get_sentiments("afinn")) |>
+  group_by(index = linenumber %/% 80) |>
+  summarise(sentiment = sum(value)) |>
+  mutate(method = "AFINN")
+
+bing_and_nrc <- bind_rows(
+  pride_prejudice |>
+    inner_join(get_sentiments("bing")) |>
+    mutate(method = "Bing et al."),
+  pride_prejudice |>
+    inner_join(get_sentiments("nrc") |>
+                 filter(sentiment %in% c(
+                   "positive",
+                   "negative"
+                 ))) |>
+    mutate(method = "NRC")
+) |>
+  count(method, index = linenumber %/% 80, sentiment) |>
+  pivot_wider(names_from = sentiment,
+              values_from = n,
+              values_fill = 0) |>
+  mutate(sentiment = positive - negative)
+
+# Compare AFINN, Bing, and NRC sentiments for Pride and Prejudice over time
+bind_rows(afinn,
+          bing_and_nrc) |>
+  ggplot(aes(index, sentiment, fill = method)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap( ~ method, ncol = 1, scales = "free_y")
+
+# Get counts of each word and their sentiment
+bing_word_counts <- tidy_books |>
+  inner_join(get_sentiments("bing")) |>
+  count(word, sentiment, sort = TRUE) |>
+  ungroup()
+
+# Plot frequencies of top negative and positive words
+bing_word_counts |>
+  group_by(sentiment) |>
+  slice_max(n, n = 10) |>
+  ungroup() |>
+  mutate(word = reorder(word, n)) |>
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap( ~ sentiment, scales = "free_y") +
+  labs(x = "Contribution to sentiment",
+       y = NULL)
+
+# Create stop words
+custom_stop_words <- bind_rows(tibble(word = c("miss"),
+                                      lexicon = c("custom")),
+                               stop_words)
+
+# Create wordcloud of most frequent words (excluding stop words)
+tidy_books |>
+  anti_join(stop_words) |>
+  count(word) |>
+  with(wordcloud(word, n, max.words = 100))
+
+# Create wordcloud by postive vs. negative sentiments
+tidy_books |>
+  inner_join(get_sentiments("bing")) |>
+  count(word, sentiment, sort = TRUE) |>
+  acast(word ~ sentiment, value.var = "n", fill = 0) |>
+  comparison.cloud(colors = c("gray20", "gray80"),
+                   max.words = 100)
+
+# Get proportion of negative words by book chapter
+bingnegative <- get_sentiments("bing") |>
+  filter(sentiment == "negative")
+
+wordcounts <- tidy_books |>
+  group_by(book, chapter) |>
+  summarize(words = n())
+
+tidy_books |>
+  semi_join(bingnegative) |>
+  group_by(book, chapter) |>
+  summarize(negativewords = n()) |>
+  left_join(wordcounts, by = c("book", "chapter")) |>
+  mutate(ratio = negativewords / words) |>
+  filter(chapter != 0) |>
+  slice_max(ratio, n = 1) |>
+  ungroup()
+```
+
+## 2. Lana Del Rey lyrics
+
+Next, I extend the code with using a corpus of [Lana Del Rey's full discography from Kaggle](https://www.kaggle.com/datasets/madroscla/lana-del-rey-genius-discography-released?resource=download). I tidy and unnest tokens from Lana's song lyrics below:
+
+```{r}
+#| label: import example data
+#| message: false
+
+tidy_ldr <-
+  read_csv(
+    "https://raw.githubusercontent.com/naomibuell/DATA607/main/ldr_discography_released.csv"
+  ) |>
+  # removing songs on other artists' albums or songs that weren't on any album (singles, etc.)
+  filter(category != "Non-Album Songs" &
+           category != "Other Artist Songs") |>
+  drop_na(album_title) |>
+  # remove unneeded variables from data
+  select(
+    -c(
+      ends_with("url"),
+      song_page_views,
+      song_artists,
+      song_writers,
+      song_producers,
+      song_tags,
+      category,
+      song_release_date
+    )
+  ) |>
+  unnest_tokens(word, song_lyrics)
+```
+
+I create some visualizations of Lana's lyrics, similar to the Jane Austen figures above. Here is a plot comparing the sentiment of Lana's albums as you listen to the album all the way through.
+
+```{r fig.width=8, fig.height=12}
+#| label: figures
+#| message: false
+
+ldr_sentiment <- tidy_ldr |>
+  inner_join(get_sentiments("bing")) |>
+  count(album_title, song_title, album_track_number, sentiment) |>
+  pivot_wider(names_from = sentiment,
+              values_from = n,
+              values_fill = 0) |>
+  mutate(sentiment = positive - negative)
+
+# Plot sentiments over the course of the album (in terms of track number), by album
+ggplot(ldr_sentiment,
+       aes(album_track_number, sentiment, fill = album_title)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ album_title, ncol = 2, scales = "free_x")
+
+# Pulling negative outlier songs for reference
+neg_songs <-  ldr_sentiment |>
+  arrange(desc(-sentiment)) |>
+  select(song_title) |>
+  head(3) |>
+  unlist() |>
+  paste0(collapse = ", ")
+```
+
+You can see that most of her songs are net postive, but there are a few albums with some extremely negative songs (e.g., `r neg_songs`, etc).
+
+Below I get Lana's most frequently used positive and negative words and plot them:
+
+```{r}
+#| message: false
+# Get counts of each word and their sentiment
+bing_word_counts_ldr <- tidy_ldr |>
+  inner_join(get_sentiments("bing")) |>
+  count(word, sentiment, sort = TRUE) |>
+  ungroup()
+
+# Plot frequencies of top negative and positive words
+bing_word_counts_ldr |>
+  group_by(sentiment) |>
+  slice_max(n, n = 9) |>
+  ungroup() |>
+  mutate(word = reorder(word, n)) |>
+  ggplot(aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ sentiment, scales = "free_y") +
+  labs(x = "Contribution to sentiment",
+       y = NULL)
+```
+
+Here are word clouds of her most used words, and frequently used words sorted into positive and negative groups:
+
+```{r}
+#| label: word clouds
+#| message: false
+
+# Create wordcloud of most frequent words (excluding stop words)
+tidy_ldr |>
+  anti_join(stop_words) |>
+  count(word) |>
+  with(wordcloud(word, n, max.words = 100))
+
+# Create wordcloud by postive vs. negative sentiments
+tidy_ldr |>
+  inner_join(get_sentiments("bing")) |>
+  count(word, sentiment, sort = TRUE) |>
+  acast(word ~ sentiment, value.var = "n", fill = 0) |>
+  comparison.cloud(colors = c("red", "dark green"),
+                   max.words = 100)
+```
+
+Lastly, I want to compare the words in Jane Austen's novels with Lana's song lyrics.
+
+```{r}
+#| label: compare
+#| warning: false
+#| message: false
+
+# get frequency as a proportion of total words (not including stop words) for both
+frequency <- bind_rows(mutate(tidy_ldr, author = "Lana Del Rey"),
+                       mutate(tidy_books, author = "Jane Austen")) |>
+  mutate(word = str_extract(word, "[a-z']+")) |>
+  anti_join(stop_words) |>
+  count(author, word) |>
+  group_by(author) |>
+  mutate(proportion = n / sum(n)) |>
+  select(-n) |>
+  pivot_wider(names_from = author, values_from = proportion) |>
+  clean_names() |>
+  mutate(abs_diff = abs(jane_austen - lana_del_rey)) |> 
+  drop_na(abs_diff)
+
+# graph
+ggplot(frequency, aes(x = lana_del_rey, y = jane_austen,
+                      color = abs_diff)) +
+  geom_abline(color = "gray40", lty = 2) +
+  geom_jitter(
+    alpha = 0.1,
+    size = 2.5,
+    width = 0.3,
+    height = 0.3
+  ) +
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  scale_color_gradient(limits = c(0, 0.001),
+                       low = "dark green",
+                       high = "black") +
+  theme(legend.position = "none")
+
+# get top most simmilar and dissimilar frequency words for reference
+sim_freqs <- frequency |>
+  arrange(desc(-abs_diff)) |>
+  select(word) |>
+  head(3) |>
+  unlist() |>
+  paste0(collapse = ", ")
+
+diff_freqs <- frequency |>
+  arrange(desc(abs_diff)) |>
+  select(word) |>
+  head(3) |>
+  unlist() |>
+  paste0(collapse = ", ")
+```
+
+Words in green that are close to the line have similar frequencies in both works (e.g., `r sim_freqs`, etc.) and words farther away from the line are found in one set of texts more frequently than the other (e.g., `r diff_freqs`, etc.).
+
+## 3. Loughran lexicon
+
+Finally, I extend the code further by incorporating the sentiment lexicon, Loughran. First, I get the Loughran sentiment for each word in the Lana's lyrics and Jane Austen's novels.
+
+```{r}
+#| label: Loughran
+#| message: false
+
+loughran_sentiments <- frequency |> 
+  inner_join(get_sentiments("loughran")) |> 
+  mutate(sentiment = as_factor(sentiment),
+         average_freq = (jane_austen + lana_del_rey)/2,
+         high_shared_freq = average_freq > .5 * mean(average_freq))
+
+head(loughran_sentiments)
+
+loughran_levels <- levels(loughran_sentiments$sentiment) |> 
+  unlist() |>
+  paste0(collapse = ", ")
+```
+
+Note that this lexicon was created for analyzing financial documents, so these sentiments (i.e., `r loughran_levels`) may be less applicable to the prose we've been analyzing up to now.
+
+Below, I compare frequencies of words in both sets of work, broken up by their sentiment:
+
+```{r fig.width=14, fig.height=10}
+#| label: plot Loughran
+#| warning: false
+
+loughran_sentiments |>
+  ggplot(aes(x = lana_del_rey, y = jane_austen,
+             color = abs_diff)) +
+  geom_abline(color = "gray40", lty = 2) +
+  geom_jitter(
+    alpha = 0.1,
+    size = 2.5,
+    width = 0.3,
+    height = 0.3
+  ) +
+  geom_text(aes(label = word), check_overlap = FALSE, vjust = 3) + # Adjust check_overlap and vjust
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  scale_color_gradient(limits = c(0, 0.0005),
+                       low = "dark green",
+                       high = "black") +
+  theme(legend.position = "none") +
+  facet_wrap( ~ sentiment, ncol = 2, scales = "free_x")
+```
+
+```{r}
+#| echo: false
+# getting similar and unique positive and negative words for reference. (Only selecting from words that occur relatively frequently in either work)
+get_top_loughran_words <- function(sentiment, scale) {
+  loughran_sentiments |>
+    arrange(desc({{scale}})) |>
+    filter(sentiment == {{sentiment}},
+           high_shared_freq) |>
+    select(word) |>
+    head(2) |>
+    pull() |>
+    paste0(collapse = " and ")
+}
+
+diff_neg_freqs <- get_top_loughran_words("negative", abs_diff)
+diff_pos_freqs <- get_top_loughran_words("positive", abs_diff)
+sim_neg_freqs <- get_top_loughran_words("negative", -abs_diff)
+sim_pos_freqs <- get_top_loughran_words("positive", -abs_diff)
+```
+
+From these graphs, you can see that negative words like `r diff_neg_freqs` are much more frequently used in one set of works than the other. Among the positive words, `r sim_pos_freqs` are frequently used by both authors to a similar extent in their works. Unsurprisingly, the number of litigious or constraining words are few, due to the topics of Jane Austen's and Lana Del Rey's work.
+
+## Conclusion
+
+In this assignment, I analyzed the words and sentiments in Jane Austen's and Lana Del Rey's bodies of work. The language they use shares many similarities despite being written 200 years apart.
+
+## References
+
+1.  Silge, J., & Robinson, D. (2024). Text Mining with R: A Tidy Approach. Last built on February 2, 2024. Retrieved from <https://www.tidytextmining.com/sentiment.html>.
