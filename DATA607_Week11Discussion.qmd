@@ -1,0 +1,82 @@
+---
+title: "Week 11 Discussion"
+author: "Naomi Buell"
+format: html
+editor: visual
+---
+
+## Intro
+
+I chose Spotify's music recommender system for this assignment. My answers to the discussion questions are **bolded** below:
+
+## Assignment
+
+1.  Perform a Scenario Design analysis as described below. Consider whether it makes sense for your selected recommender system to perform scenario design twice, once for the organization (e.g. Amazon.com) and once for the organization's customers.
+
+    1.  Identify a recommender system web site, then
+
+        **I chose Spotify's recommender system for this assignment.**
+
+    2.  Answer the three scenario design questions for this web site.
+
+        1.  Who are your target users?
+
+            **My target users are Spotify listeners.**
+
+        2.  What are their key goals?
+
+            **Their key goals are to listen to and/or discover music that they like.**
+
+        3.  How can you help them accomplish those goals?
+
+            **We can help them accomplish their goals by suggesting music (artists/songs/records/etc.) for them to listen to that they might like.**
+
+2.  Attempt to reverse engineer what you can about the site, from the site interface and any available information that you can find on the Internet or elsewhere.
+
+    **Spotify recommends music to listeners in many ways. There are many tailored playlists for you based on genre or other topic (e.g., newly released music), there is an AI DJ that plays a radio based on your preferences, there are even songs Spotify recommends you add to a playlist you start creating. Spotify even recommends different music to you based on what time of day you'd like to listen to it.**
+
+    **From Spotify's interface, you can see that all music in Spotify's database has the following features which could be used for content-based filtering–suggesting music based its** **properties (**Leskovec, 2010**):**
+
+    -   **Track title**
+
+    -   **Release title**
+
+    -   **Artist name**
+
+    -   **Featured artists**
+
+    -   **Songwriter credits**
+
+    -   **Producers credits**
+
+    -   **Label**
+
+    -   **Release Date**
+
+    **In addition to these metadata, Spotify also analyzes raw audio (e.g., BPM, etc.), lyrics analysis, and data from user-generated playlists to determine its music's properties for recommendation (Pastukhov, 2022).**
+
+    **Spotify also performs collaborative filtering, recommending music that are preferred by similar listeners based on comparison of users' listening history. Spotify also assumes songs are similar if they are added to a playlist together, and can produce recommendations that way. Since you can connect with friends on Spotify, I imagine it may connect similar listeners together based on your network as well.**
+
+    **Spotify also generates user-taste profiles based on how you engage with the platform. For e.g., if you skip a song, that might mean you don't like it. Pastukhov lists the following modes of feedback to generate a taste profile:**
+
+    1.  **Explicit, or active feedback: library saves, playlist adds, shares, skips, click-through to artist/album page, artist follows, "downstream" plays**
+
+    2.  **Implicit, or passive feedback: listening sessions length, track playthrough, and repeat listens**
+
+    **Then, user feedback data is processed to develop a profile of your preferences.**
+
+3.  Include specific recommendations about how to improve the site's recommendation capabilities going forward.
+
+    **I find that Spotify is recommending the same few artists to me and my friends, which feels limiting to me. Since play count is so important, artists are making their music shorter than 3 minutes to get more replays. Sometimes I wonder if artists/labels are paying Spotify money to be recommended to listeners more frequently.** **To this end, I'd recommend the following:**
+
+    -   **Make their algorithms more diverse. By prioritizing diversity in recommendations, users might be exposed to a broader range of artists and genres.**
+
+    -   **Be more transparent in recommendations. If Spotify provided users with insights into the factors influencing their recommendations, such as collaborative filtering, content-based filtering, this could help users understand why certain artists are being recommended and alleviate concerns about bias or manipulation.**
+
+    -   **Prioritizing quality over quantity. Instead of incentivizing artists to make shorter songs solely for the purpose of increasing replays, Spotify should prioritize quality and artistic integrity. Encouraging artists to create meaningful and engaging content will ultimately benefit both listeners and the platform in the long run.**
+
+## References
+
+1.  Leskovec, J., Rajaraman, A., & Ullman, J. D. (2010). Chapter 9: Mining Massive Datasets. Retrieved from <http://www.mmds.org/>
+
+2.  Pastukhov, D. (2022, February 9). Inside Spotify’s Recommender System: A Complete Guide to Spotify Recommendation Algorithms. Retrieved from <https://www.music-tomorrow.com/blog/how-spotify-recommendation-system-works-a-complete-guide-2022>
