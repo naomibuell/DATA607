@@ -35,7 +35,7 @@ I chose Spotify's music recommender system for this assignment. My answers to th
 
     **Spotify recommends music to listeners in many ways. There are many tailored playlists for you based on genre or other topic (e.g., newly released music), there is an AI DJ that plays a radio based on your preferences, there are even songs Spotify recommends you add to a playlist you start creating. Spotify even recommends different music to you based on what time of day you'd like to listen to it.**
 
-    **From Spotify's interface, you can see that all music in Spotify's database has the following features which could be used for content-based filtering–suggesting music based its** **properties (**Leskovec, 2010**):**
+    **From Spotify's interface, you can see that all music in Spotify's database has the following features which could be used for content-based filtering–suggesting music based its** **properties** **(Leskovec, 2010):**
 
     -   **Track title**
 
